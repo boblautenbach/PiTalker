@@ -1,0 +1,82 @@
+﻿<grammar
+  version="1.0"
+  xml:lang="en-US"
+  root="topLevel"
+  xmlns="http://www.w3.org/2001/06/grammar"
+  tag-format="semantics/1.0">
+  
+  
+  <rule id="topLevel">
+    <one-of>
+      <item>
+        <ruleref uri="#sendCommands" />
+      </item>
+      <item>
+        <ruleref uri="#activateCommands" />
+      </item>
+      <item>
+        <ruleref uri="#activate2Commands" />
+      </item>
+      </one-of>
+  </rule>
+
+  <rule id="sendCommands">
+     <item>Send Message<tag>out.cmd="Send Message";</tag></item>
+  </rule>
+    
+  <rule id="activateCommands">
+    <item>make</item>
+    <item>
+      <ruleref uri="#names"/>
+      <tag>out.name=rules.latest();</tag>
+     </item>
+    <item>
+      <ruleref uri="#status"/>
+      <tag>out.cmd=rules.latest();</tag>
+     </item>
+  </rule>
+
+
+  <rule id="activate2Commands">
+    <item>
+      <ruleref uri="#connections"/>
+      <tag>out.cmd=rules.latest();</tag>
+    </item>
+    <item>
+      <ruleref uri="#names"/>
+      <tag>out.name=rules.latest();</tag>
+    </item> 
+    <item>to the hub</item>
+  </rule>
+
+  <rule id="connections">
+    <one-of>
+      <item>
+        connect<tag>out="connect";</tag>
+      </item>
+      <item>
+        disconnect<tag>out="disconnect";</tag>
+      </item>
+    </one-of>
+  </rule>
+  
+  <rule id="status">
+        <one-of>
+          <item>available<tag>out="online";</tag></item>
+          <item>unavailable<tag>out="offline";</tag></item>
+        </one-of>
+  </rule>
+    <rule id="names">
+        <one-of>
+          <item>bob<tag>out="bob";</tag></item>
+          <item>walter<tag>out="walter"; </tag></item>
+          <item>
+            danny<tag>out="danny";</tag>
+          </item>
+          <item>
+            ross<tag>out="ross";</tag>
+          </item>          
+        </one-of>
+  </rule>
+
+</grammar>
