@@ -12,6 +12,13 @@ using Windows.Storage;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Navigation;
+using Amqp;
+using Amqp.Framing;
+using System.Xml;
+using System.IO;
+using Windows.Data.Xml.Dom;
+using Windows.Networking.Connectivity;
+using Windows.Networking;
 
 // The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=402352&clcid=0x409
 
@@ -25,6 +32,11 @@ namespace BiDirectionalVoiceApp
     public sealed partial class MainPage : Page
     {
 
+        //AMQP
+        Amqp.Connection amqpConnection;
+        string amqpEventhubHostFormat = "amqps://{0}:{1}@{2}.servicebus.windows.net";
+        Address ampsAddress;
+        Session amqpSession;
 
         private const string SRGS_FILE = "Grammar\\grammar.xml";
         public class Message
@@ -37,7 +49,7 @@ namespace BiDirectionalVoiceApp
         private SpeechRecognizer recognizer;
         // Speech Recognizer
         static ObservableCollection<Message> items = new ObservableCollection<Message>();
-        private SpeechRecognizer talkrecognizer;
+      //  private SpeechRecognizer talkrecognizer;
 
         const string HUB_URL = "https://ewchub.azurewebsites.net/";
         const string HUB_NAME = "MessageHub";
@@ -49,67 +61,186 @@ namespace BiDirectionalVoiceApp
         public MainPage()
         {
             this.InitializeComponent();
-            // Initialize Recognizer
-     
         }
+
+        private string GetHostName()
+        {
+            var hostNames = NetworkInformation.GetHostNames();
+           return hostNames.FirstOrDefault(name => name.Type == HostNameType.DomainName)?.DisplayName;
+        }
+
+        #region amqp
+
+
+        private async void ConnectToServiceBus()
+        {
+            try
+            { 
+                ampsAddress = new Address(string.Format(amqpEventhubHostFormat, "RootManageSharedAccessKey", Uri.EscapeDataString("pcKzLqYdC56xC4uOlia3odFilEoUgOeWbwTFJxAFFCY="), "pitalk"));
+                
+                amqpConnection = await Amqp.Connection.Factory.CreateAsync(ampsAddress);
+
+                var receiverSubscriptionId = "me.amqp.recieiver." + GetHostName();
+
+                // Name of the topic you will be sending messages
+                var topic = "chats";
+
+                // Name of the subscription you will receive messages from
+                var subscription = "conversations";
+
+                amqpSession = new Session(amqpConnection);
+                var consumer = new ReceiverLink(amqpSession, receiverSubscriptionId, $"{topic}/Subscriptions/{subscription}");
+
+                // Start listening
+                consumer.Start(5, OnMessageCallback);
+
+            }
+            catch (Exception ex)
+            {
+                SendToView("Error " + ex.Message);
+            }
+
+        }
+        
+        private async void SendMessage(string recipient, string message)
+        {
+            // Create the topic if it does not exist already.
+            SenderLink sender = null;
+
+            try
+            {
+                // Amqp Code
+                // amqpSession = new Session(amqpConnection);
+                var senderSubscriptionId = "conversations." + GetHostName();
+                var topic = "chats";
+
+                sender = new SenderLink(amqpSession, senderSubscriptionId, topic);
+
+                // Create message
+                var chatMessage = new Amqp.Message(message);
+
+                // Add a meesage id
+                chatMessage.Properties = new Properties() { MessageId = Guid.NewGuid().ToString() };
+
+                // Add some message properties
+                chatMessage.ApplicationProperties = new ApplicationProperties();
+                chatMessage.ApplicationProperties["Recipient"] = recipient;
+                chatMessage.ApplicationProperties["Sender"] = _name;
+
+                // Send message
+                await sender.SendAsync(chatMessage);
+                SendToView("Message Sent : " +  recipient + " " + message);
+
+            }
+            catch (Exception ex)
+            {
+                SendToView("Error " + ex.Message);
+            }
+
+            await sender.CloseAsync();
+        }
+
+        async void OnMessageCallback(ReceiverLink receiver, Amqp.Message message)
+        {
+            try
+            {
+                if (message.ApplicationProperties != null)
+                {
+                    // You can read the custom property
+                    var recipient = message.ApplicationProperties["Recipient"];
+                    var sender = message.ApplicationProperties["Sender"];
+
+                    SendToView("Message Received from  " + sender + ": "  + recipient + " Message " + message.Body.ToString());
+
+
+                    if (recipient.Equals(_name))
+                    {
+                        // Accept the messsage.
+                        receiver.Accept(message);
+
+                        await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                        {
+                            ReadText(sender + "says. " + recipient + " " + message.Body.ToString());
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                receiver.Reject(message);
+                SendToView(ex.Message);
+            }
+
+        }
+
+        #endregion
+
+
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
             lvDataBinding.ItemsSource = items;
             SendToView("Loading...");
             initializeSpeechRecognizer();
+            ConnectToServiceBus();
 
         }
         private async void InitializeTalk()
         {
+
+            string resultText = string.Empty;
+
             try
             {
-
-                //if (_isAskinForName)
-                //{
-                //        ReadText("Please tell me your name.");
-                //}
-
                 // Initialize recognizer
-                talkrecognizer = new SpeechRecognizer();
-
-                // Set event handlers
-                SpeechRecognitionCompilationResult compilationResult = await talkrecognizer.CompileConstraintsAsync();
-
-                // If successful, display the recognition result.
-                if (compilationResult.Status == SpeechRecognitionResultStatus.Success)
+                using (var _talkrecognizer = new SpeechRecognizer())
                 {
-                    SpeechRecognitionResult result =  await talkrecognizer.RecognizeAsync();
-                    if(result.Status == SpeechRecognitionResultStatus.Success)
+                   var compilationResult = await _talkrecognizer.CompileConstraintsAsync();
+
+                    // If successful, display the recognition result.
+                    if (compilationResult.Status == SpeechRecognitionResultStatus.Success)
                     {
+                        SpeechRecognitionResult result = await _talkrecognizer.RecognizeAsync();
 
-                       SendToView("text: " + result.Text);
+                        if (result.Status == SpeechRecognitionResultStatus.Success)
+                        {
+                            resultText = result.Text;
+                        }
 
-                            _isAskinForName = false;
-
-                            var i = result.Text.IndexOf(' ');
-                            var recipient = result.Text.Substring(0, i).Trim().ToLower();
-                            var msg = result.Text.Substring(i).Trim();
-
-                        SendToView("recipient: " + recipient  +" " + recipient.Length.ToString() );
-                        List<string> l = new List<string>();
-                        l.Add(recipient.ToLower());
-                        l.Add(recipient + " " + msg);
-                   
-                        await _proxy.Invoke<Task>("SendMessage",l.ToArray());
-                            //Send to person
                     }
                 }
-                else
+                _isAskinForName = false;
+
+                if (resultText != null && !string.IsNullOrEmpty(resultText))
                 {
-                    SendToView("Status: " + compilationResult.Status);
+                    var i = resultText.IndexOf(' ');
+
+                    if (i > 1)
+                    {
+                        var recipient = resultText.Substring(0, i).Trim().ToLower();
+
+                        if (resultText.Length > i)
+                        {
+                            var msg = resultText.Substring(i).Trim();
+
+                            List<string> l = new List<string>();
+                            l.Add(recipient.ToLower());
+                            l.Add(recipient + " " + msg);
+
+                            SendMessage(recipient, msg);
+                        }
+                    }
+
+                    //Send Message o Servcie Bus
+                    // await _proxy.Invoke<Task>("SendMessage",l.ToArray());
+                    //Send to person
                 }
             }
             catch (Exception ex)
             {
                 SendToView(ex.Message);
             }
-           // initializeSpeechRecognizer();
+            
             await recognizer.ContinuousRecognitionSession.StartAsync();
         }
 
@@ -118,9 +249,7 @@ namespace BiDirectionalVoiceApp
         {
             // Stop recognizing
             await recognizer.ContinuousRecognitionSession.StopAsync();
-            await talkrecognizer.StopRecognitionAsync();
-            // Release pins
-
+           // await talkrecognizer.StopRecognitionAsync();
         }
 
         // Initialize Speech Recognizer and start async recognition
@@ -149,14 +278,14 @@ namespace BiDirectionalVoiceApp
 
                 // Compile grammer
 
-                SendToView("Status: " + compilationResult.Status.ToString());
+             //   SendToView("Status: " + compilationResult.Status.ToString());
 
                 // If successful, display the recognition result.
                 if (compilationResult.Status == SpeechRecognitionResultStatus.Success)
                 {
                     await recognizer.ContinuousRecognitionSession.StartAsync();
                     SendToView("Status: continuous speech recognizer Initialized");
-                    SendToView("You can now say...'Make [Name] available'");
+                    SendToView("You can now say...'Connect [Name] to the hub'");
                 }
                 else
                 {
@@ -194,22 +323,23 @@ namespace BiDirectionalVoiceApp
                 args.Result.SemanticInterpretation.Properties["name"][0].ToString() :
                 "";
 
-            SendToView("Command: " + target);
-
             var c = args.Result.Confidence;
  
             if (c == SpeechRecognitionConfidence.High)
             {
-                if(target == "connect")
+                SendToView("Command: " + target);
+
+                if (target == "connect")
                 {
                    await recognizer.ContinuousRecognitionSession.StopAsync();
 
                     _name = name;
 
-                    await ConnectToHub(HUB_URL, HUB_NAME);
+                    //Signalr Code
+                    //await ConnectToHub(HUB_URL, HUB_NAME);
+                    //await _proxy.Invoke<Task>("Join", _name.ToLower());
 
-                    SendToView("Connecting again as " + _name);
-                    await _proxy.Invoke<Task>("Join", _name.ToLower());
+                    SendToView("Connecting as " + _name);
 
                     await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
                     {
@@ -223,24 +353,24 @@ namespace BiDirectionalVoiceApp
                     return;
                 }
 
-                if (target == "disconnect")
-                {
+                //if (target == "disconnect")
+                //{
 
-                    await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
-                    {
-                        ReadText("OK You are no longer available on the hub.");
-                    });
-                    await recognizer.ContinuousRecognitionSession.StopAsync();
+                //    await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                //    {
+                //        ReadText("OK You are no longer available on the hub.");
+                //    });
+                //    await recognizer.ContinuousRecognitionSession.StopAsync();
 
-                    _hubConnection.Stop();
-                    _proxy = null;
-                    _hubConnection.Dispose();
+                //    //_hubConnection.Stop();
+                //    //_proxy = null;
+                //    //_hubConnection.Dispose();
 
-                    await recognizer.ContinuousRecognitionSession.StartAsync();
+                //    await recognizer.ContinuousRecognitionSession.StartAsync();
 
-                    return;
+                //    return;
 
-                }
+                //}
                 if (target == "Send Message")
                 {
                     await recognizer.ContinuousRecognitionSession.StopAsync();

@@ -1,5 +1,6 @@
 ﻿{
   "dependencies": {
+    "AMQPNetLite": "1.2.0",
     "Microsoft.AspNet.SignalR.Client": "2.2.1",
     "Microsoft.NETCore.UniversalWindowsPlatform": "5.2.2"
   },
