@@ -285,7 +285,7 @@ namespace BiDirectionalVoiceApp
                 {
                     await recognizer.ContinuousRecognitionSession.StartAsync();
                     SendToView("Status: continuous speech recognizer Initialized");
-                    SendToView("You can now say...'Connect [Name] to the hub'");
+                    SendToView("You can now say...'Alfred, Connect [Name] to the hub'");
                 }
                 else
                 {
@@ -448,9 +448,21 @@ namespace BiDirectionalVoiceApp
             MediaElement media = new MediaElement();
             SpeechSynthesisStream stream = null;
 
+            //using (SpeechSynthesizer synthesizer = new SpeechSynthesizer())
+            //{
+            //    // show installed voices
+            //    foreach (var v in SpeechSynthesizer.AllVoices)
+            //    {
+            //        SendToView(string.Format("Name:{0}, Gender:{1}, DisplayName:{2}",
+            //          v.Description, v.Gender, v.DisplayName));
+            //    }
+
+            //}
+
             var voices = SpeechSynthesizer.AllVoices;
             using (var speech = new SpeechSynthesizer()) {
-                speech.Voice = voices.First(gender => gender.Gender == VoiceGender.Female);
+              //  speech.Voice = voices.First(gender => gender.Gender == VoiceGender.Female);
+                speech.Voice = voices.First(gender => gender.Gender == VoiceGender.Male && gender.Description.Contains("David"));
                 stream = await speech.SynthesizeTextToStreamAsync(text);
             }
 

@@ -38,6 +38,7 @@
 
 
   <rule id="activate2Commands">
+    <item>Alfred</item>
     <item>
       <ruleref uri="#connections"/>
       <tag>out.cmd=rules.latest();</tag>
