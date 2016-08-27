@@ -31,27 +31,27 @@ namespace BiDirectionalVoiceApp
     /// </summary>
     public sealed partial class MainPage : Page
     {
-
-        //AMQP
-        Amqp.Connection amqpConnection;
-        string amqpEventhubHostFormat = "amqps://{0}:{1}@{2}.servicebus.windows.net";
-        Address ampsAddress;
-        Session amqpSession;
-
         private const string SRGS_FILE = "Grammar\\grammar.xml";
         public class Message
         {
             public string Event { get; set; }
         }
 
-        static bool _isAskinForName = false;
+        public class HubMessage
+        {
+            public string Msg { get; set; }
+            public string Group { get; set; }
+            public string Sender { get; set; }
+
+        }
+
         // Speech Recognizer
         private SpeechRecognizer recognizer;
         // Speech Recognizer
         static ObservableCollection<Message> items = new ObservableCollection<Message>();
       //  private SpeechRecognizer talkrecognizer;
 
-        const string HUB_URL = "https://ewchub.azurewebsites.net/";
+        const string HUB_URL = "https://pitalkersignal.azurewebsites.net";
         const string HUB_NAME = "MessageHub";
         string _name = string.Empty;
 
@@ -69,120 +69,12 @@ namespace BiDirectionalVoiceApp
            return hostNames.FirstOrDefault(name => name.Type == HostNameType.DomainName)?.DisplayName;
         }
 
-        #region amqp
-
-
-        private async void ConnectToServiceBus()
-        {
-            try
-            { 
-                ampsAddress = new Address(string.Format(amqpEventhubHostFormat, "RootManageSharedAccessKey", Uri.EscapeDataString("pcKzLqYdC56xC4uOlia3odFilEoUgOeWbwTFJxAFFCY="), "pitalk"));
-                
-                amqpConnection = await Amqp.Connection.Factory.CreateAsync(ampsAddress);
-
-                var receiverSubscriptionId = "me.amqp.recieiver." + GetHostName();
-
-                // Name of the topic you will be sending messages
-                var topic = "chats";
-
-                // Name of the subscription you will receive messages from
-                var subscription = "conversations";
-
-                amqpSession = new Session(amqpConnection);
-                var consumer = new ReceiverLink(amqpSession, receiverSubscriptionId, $"{topic}/Subscriptions/{subscription}");
-
-                // Start listening
-                consumer.Start(5, OnMessageCallback);
-
-            }
-            catch (Exception ex)
-            {
-                SendToView("Error " + ex.Message);
-            }
-
-        }
-        
-        private async void SendMessage(string recipient, string message)
-        {
-            // Create the topic if it does not exist already.
-            SenderLink sender = null;
-
-            try
-            {
-                // Amqp Code
-                // amqpSession = new Session(amqpConnection);
-                var senderSubscriptionId = "conversations." + GetHostName();
-                var topic = "chats";
-
-                sender = new SenderLink(amqpSession, senderSubscriptionId, topic);
-
-                // Create message
-                var chatMessage = new Amqp.Message(message);
-
-                // Add a meesage id
-                chatMessage.Properties = new Properties() { MessageId = Guid.NewGuid().ToString() };
-
-                // Add some message properties
-                chatMessage.ApplicationProperties = new ApplicationProperties();
-                chatMessage.ApplicationProperties["Recipient"] = recipient;
-                chatMessage.ApplicationProperties["Sender"] = _name;
-
-                // Send message
-                await sender.SendAsync(chatMessage);
-                SendToView("Message Sent : " +  recipient + " " + message);
-
-            }
-            catch (Exception ex)
-            {
-                SendToView("Error " + ex.Message);
-            }
-
-            await sender.CloseAsync();
-        }
-
-        async void OnMessageCallback(ReceiverLink receiver, Amqp.Message message)
-        {
-            try
-            {
-                if (message.ApplicationProperties != null)
-                {
-                    // You can read the custom property
-                    var recipient = message.ApplicationProperties["Recipient"];
-                    var sender = message.ApplicationProperties["Sender"];
-
-                    SendToView("Message Received from  " + sender + ": "  + recipient + " Message " + message.Body.ToString());
-
-
-                    if (recipient.Equals(_name))
-                    {
-                        // Accept the messsage.
-                        receiver.Accept(message);
-
-                        await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
-                        {
-                            ReadText(sender + "says. " + recipient + " " + message.Body.ToString());
-                        });
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                receiver.Reject(message);
-                SendToView(ex.Message);
-            }
-
-        }
-
-        #endregion
-
-
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
             lvDataBinding.ItemsSource = items;
             SendToView("Loading...");
             initializeSpeechRecognizer();
-            ConnectToServiceBus();
 
         }
         private async void InitializeTalk()
@@ -209,7 +101,6 @@ namespace BiDirectionalVoiceApp
 
                     }
                 }
-                _isAskinForName = false;
 
                 if (resultText != null && !string.IsNullOrEmpty(resultText))
                 {
@@ -227,13 +118,12 @@ namespace BiDirectionalVoiceApp
                             l.Add(recipient.ToLower());
                             l.Add(recipient + " " + msg);
 
-                            SendMessage(recipient, msg);
+                            //  SendMessage(recipient, msg);
+
+                           await _proxy.Invoke<HubMessage>("SendMessage", new HubMessage() { Msg = msg, Sender = _name, Group = recipient });
+                            SendToView("Message Sent : " + recipient + " " + msg);
                         }
                     }
-
-                    //Send Message o Servcie Bus
-                    // await _proxy.Invoke<Task>("SendMessage",l.ToArray());
-                    //Send to person
                 }
             }
             catch (Exception ex)
@@ -313,8 +203,6 @@ namespace BiDirectionalVoiceApp
         // Recognizer generated results
         private async void RecognizerResultGenerated(SpeechContinuousRecognitionSession session, SpeechContinuousRecognitionResultGeneratedEventArgs args)
         {
-            _isAskinForName = false;
-
             // Check for different tags and initialize the variables
             String target = args.Result.SemanticInterpretation.Properties.ContainsKey("cmd") ?
                             args.Result.SemanticInterpretation.Properties["cmd"][0].ToString() :
@@ -336,8 +224,8 @@ namespace BiDirectionalVoiceApp
                     _name = name;
 
                     //Signalr Code
-                    //await ConnectToHub(HUB_URL, HUB_NAME);
-                    //await _proxy.Invoke<Task>("Join", _name.ToLower());
+                    await ConnectToHub(HUB_URL, HUB_NAME);
+                    await _proxy.Invoke("Join", _name.ToLower());
 
                     SendToView("Connecting as " + _name);
 
@@ -426,9 +314,15 @@ namespace BiDirectionalVoiceApp
 
                 await WireHubEvent();
 
-                _proxy.On<string>("OnMessageSent", (x) =>
+                _proxy.On<HubMessage>("OnMessageSent", async (x) =>
                 {
-                     ReadText(x);
+
+                    SendToView("Message Received from  " + x.Sender + ": " + x.Group + " Message " + x.Msg);
+
+                    await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                    {
+                        ReadText(x.Sender + "says. " + x.Group + " " +x.Msg);
+                    });
                 });
 
                 await _hubConnection.Start();
