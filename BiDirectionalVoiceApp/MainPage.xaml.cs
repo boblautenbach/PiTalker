@@ -250,15 +250,15 @@ namespace BiDirectionalVoiceApp
                 //    });
                 //    await recognizer.ContinuousRecognitionSession.StopAsync();
 
-                //    //_hubConnection.Stop();
-                //    //_proxy = null;
-                //    //_hubConnection.Dispose();
+                //    _hubConnection.Stop();
+                //    _proxy = null;
+                //    _hubConnection.Dispose();
 
                 //    await recognizer.ContinuousRecognitionSession.StartAsync();
 
                 //    return;
-
                 //}
+
                 if (target == "Send Message")
                 {
                     await recognizer.ContinuousRecognitionSession.StopAsync();
