@@ -77,7 +77,7 @@ namespace BiDirectionalVoiceApp
             initializeSpeechRecognizer();
 
         }
-        private async void InitializeTalk()
+        private async Task InitializeTalk()
         {
 
             string resultText = string.Empty;
@@ -128,10 +128,18 @@ namespace BiDirectionalVoiceApp
             }
             catch (Exception ex)
             {
+                SendToView("InitializeTalk "  + ex.Message);
+            }
+
+            try
+            {
+                await recognizer.ContinuousRecognitionSession.StartAsync();
+            }
+            catch (Exception ex)
+            {
                 SendToView(ex.Message);
             }
-            
-            await recognizer.ContinuousRecognitionSession.StartAsync();
+
         }
 
         // Release resources, stop recognizer, release pins, etc...
@@ -183,7 +191,7 @@ namespace BiDirectionalVoiceApp
                 }
             }catch(Exception ex)
             {
-                SendToView(ex.Message);
+                SendToView("initializeSpeechRecognizer " + ex.Message);
             }
         }
 
@@ -203,69 +211,99 @@ namespace BiDirectionalVoiceApp
         // Recognizer generated results
         private async void RecognizerResultGenerated(SpeechContinuousRecognitionSession session, SpeechContinuousRecognitionResultGeneratedEventArgs args)
         {
-            // Check for different tags and initialize the variables
-            String target = args.Result.SemanticInterpretation.Properties.ContainsKey("cmd") ?
+            try
+            {
+                // Check for different tags and initialize the variables
+                String target = args.Result.SemanticInterpretation.Properties.ContainsKey("cmd") ?
                             args.Result.SemanticInterpretation.Properties["cmd"][0].ToString() :
                             "";
-            String name = args.Result.SemanticInterpretation.Properties.ContainsKey("name") ?
-                args.Result.SemanticInterpretation.Properties["name"][0].ToString() :
-                "";
+                String name = args.Result.SemanticInterpretation.Properties.ContainsKey("name") ?
+                    args.Result.SemanticInterpretation.Properties["name"][0].ToString() :
+                    "";
 
-            var c = args.Result.Confidence;
- 
-            if (c == SpeechRecognitionConfidence.High)
-            {
-                SendToView("Command: " + target);
+                var c = args.Result.Confidence;
 
-                if (target == "connect")
+                if (c == SpeechRecognitionConfidence.High)
                 {
-                   await recognizer.ContinuousRecognitionSession.StopAsync();
+                    SendToView("Command: " + target);
 
-                    _name = name;
-
-                    //Signalr Code
-                    await ConnectToHub(HUB_URL, HUB_NAME);
-                    await _proxy.Invoke("Join", _name.ToLower());
-
-                    SendToView("Connecting as " + _name);
-
-                    await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                    if (target == "connect")
                     {
-                        ReadText("OK " + _name + " You are now available.");
-                    });
+                        await recognizer.ContinuousRecognitionSession.StopAsync();
 
-                    SendToView("You are now available for messaging");
-                    SendToView("You can say 'send message [pause 1 second] [name of person to message] + message");
+                        _name = name;
 
-                    await recognizer.ContinuousRecognitionSession.StartAsync();
-                    return;
+                        //Signalr Code
+                        await ConnectToHub(HUB_URL, HUB_NAME);
+                        await _proxy.Invoke("Join", _name.ToLower());
+
+                        SendToView("Connecting as " + _name);
+
+                        await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                        {
+                            ReadText("OK " + _name + " You are now available.");
+                        });
+
+                        SendToView("You are now available for messaging");
+                        SendToView("You can say 'send message [pause 1 second] [name of person to message] + message");
+
+                        await recognizer.ContinuousRecognitionSession.StartAsync();
+                        return;
+                    }
+
+                    //if (target == "disconnect")
+                    //{
+
+                    //    await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                    //    {
+                    //        ReadText("OK You are no longer available on the hub.");
+                    //    });
+                    //    await recognizer.ContinuousRecognitionSession.StopAsync();
+
+                    //    _hubConnection.Stop();
+                    //    _proxy = null;
+                    //    _hubConnection.Dispose();
+
+                    //    await recognizer.ContinuousRecognitionSession.StartAsync();
+
+                    //    return;
+                    //}
+
+                    if (target == "Send Message")
+                    {
+                        await recognizer.ContinuousRecognitionSession.StopAsync();
+                        await InitializeTalk();
+                        return;
+                    }
+
+
+                    if (target == "get time")
+                    {
+
+                        await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                        {
+                            ReadText(_name + " the time is <say-as interpret-as='time' format='hms12'> " + DateTime.Now.ToString("hh:mm tt") + " </say-as>");
+                        });
+                        return;
+                    }
+
+
+                    if (target == "thanks")
+                    {
+
+                        await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                        {
+                            ReadText("my pleasure " + _name);
+                        });
+                        return;
+                    }
+
+
                 }
-
-                //if (target == "disconnect")
-                //{
-
-                //    await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
-                //    {
-                //        ReadText("OK You are no longer available on the hub.");
-                //    });
-                //    await recognizer.ContinuousRecognitionSession.StopAsync();
-
-                //    _hubConnection.Stop();
-                //    _proxy = null;
-                //    _hubConnection.Dispose();
-
-                //    await recognizer.ContinuousRecognitionSession.StartAsync();
-
-                //    return;
-                //}
-
-                if (target == "Send Message")
-                {
-                    await recognizer.ContinuousRecognitionSession.StopAsync();
-                    InitializeTalk();
-                    return;
-                }
-
+            }
+            catch (Exception ex)
+            {
+                SendToView("RecognizerResultGenerated " + ex.Message);
             }
         }
 
@@ -275,24 +313,28 @@ namespace BiDirectionalVoiceApp
             {
                 if (obj.NewState == ConnectionState.Disconnected)
                 {
+                    SendToView("hub disconnected");
                 }
 
                 if (obj.NewState == ConnectionState.Reconnecting)
                 {
+                    SendToView("hub reconnecting");
                 }
 
                 if (obj.NewState == ConnectionState.Connecting)
                 {
+                    SendToView("hub connecting");
                 }
 
                 if (obj.NewState == ConnectionState.Connected)
                 {
-
+                    SendToView("hub connected");
                 }
             }
             catch (Exception ex)
             {
                 //You can log any errors here but its really on here for 503 errors to pass through
+                SendToView("hub state error " + ex.Message);
             }
         }
 
@@ -317,7 +359,7 @@ namespace BiDirectionalVoiceApp
                 _proxy.On<HubMessage>("OnMessageSent", async (x) =>
                 {
 
-                    SendToView("Message Received from  " + x.Sender + ": " + x.Group + " Message " + x.Msg);
+                    SendToView("Message Received from  " + x.Sender + " : " + x.Group + " "  + x.Msg);
 
                     await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
                     {
@@ -339,31 +381,48 @@ namespace BiDirectionalVoiceApp
 
         private async Task ReadText(string text)
         {
-            MediaElement media = new MediaElement();
-            SpeechSynthesisStream stream = null;
+            try
+            {
 
-            //using (SpeechSynthesizer synthesizer = new SpeechSynthesizer())
-            //{
-            //    // show installed voices
-            //    foreach (var v in SpeechSynthesizer.AllVoices)
-            //    {
-            //        SendToView(string.Format("Name:{0}, Gender:{1}, DisplayName:{2}",
-            //          v.Description, v.Gender, v.DisplayName));
-            //    }
+                MediaElement media = new MediaElement();
+                SpeechSynthesisStream stream = null;
 
-            //}
+                string Ssml =
+                    @"<speak version='1.0' " +
+                    "xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>" +
+                    text +
+                    "</speak>";
 
-            var voices = SpeechSynthesizer.AllVoices;
-            using (var speech = new SpeechSynthesizer()) {
-              //  speech.Voice = voices.First(gender => gender.Gender == VoiceGender.Female);
-                speech.Voice = voices.First(gender => gender.Gender == VoiceGender.Male && gender.Description.Contains("David"));
-                stream = await speech.SynthesizeTextToStreamAsync(text);
-            }
+                //using (SpeechSynthesizer synthesizer = new SpeechSynthesizer())
+                //{
+                //    // show installed voices
+                //    foreach (var v in SpeechSynthesizer.AllVoices)
+                //    {
+                //        SendToView(string.Format("Name:{0}, Gender:{1}, DisplayName:{2}",
+                //          v.Description, v.Gender, v.DisplayName));
+                //    }
+
+                //}
+
+                var voices = SpeechSynthesizer.AllVoices;
+                using (var speech = new SpeechSynthesizer())
+                {
+                    //  speech.Voice = voices.First(gender => gender.Gender == VoiceGender.Female);
+                    speech.Voice = voices.First(gender => gender.Gender == VoiceGender.Male && gender.Description.Contains("David"));
+                    stream = await speech.SynthesizeSsmlToStreamAsync(Ssml);
+                    //stream = await speech.SynthesizeTextToStreamAsync(text);
+                }
 
                 media.SetSource(stream, stream.ContentType);
                 media.Play();
-                media.Stop();
 
+                media.Stop();
+            }
+            catch (Exception ex)
+            {
+                //You can log any errors here but its really on here for 503 errors to pass through
+                SendToView("Play Text " + ex.Message);
+            }
         }
     }
 }

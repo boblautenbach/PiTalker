@@ -12,28 +12,41 @@
         <ruleref uri="#sendCommands" />
       </item>
       <item>
-        <ruleref uri="#activateCommands" />
-      </item>
-      <item>
         <ruleref uri="#activate2Commands" />
       </item>
+      <item>
+        <ruleref uri="#theTime" />
+      </item>
+        <item>
+        <ruleref uri="#thanks" />
+      </item>  
       </one-of>
+  </rule>
+
+
+
+  <rule id="thanks">
+    <one-of>
+      <item>
+        thanks alfred<tag>out.cmd="thanks";</tag>
+      </item>
+        <item>
+        thank you alfred<tag>out.cmd="thanks";</tag>
+      </item>
+            <item>
+        thanks<tag>out.cmd="thanks";</tag>
+      </item>
+    </one-of>
+  </rule>
+
+  <rule id="theTime">
+    <item>
+      alfred what time is it<tag>out.cmd="get time";</tag>
+    </item>
   </rule>
 
   <rule id="sendCommands">
      <item>Send Message<tag>out.cmd="Send Message";</tag></item>
-  </rule>
-    
-  <rule id="activateCommands">
-    <item>make</item>
-    <item>
-      <ruleref uri="#names"/>
-      <tag>out.name=rules.latest();</tag>
-     </item>
-    <item>
-      <ruleref uri="#status"/>
-      <tag>out.cmd=rules.latest();</tag>
-     </item>
   </rule>
 
 
