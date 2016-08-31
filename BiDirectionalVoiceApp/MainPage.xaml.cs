@@ -208,8 +208,90 @@ namespace BiDirectionalVoiceApp
             //SendToView("Continuous Listener state ...: " + sender.State.ToString());
         }
 
+        private async Task ProcessContinousVoiceResult(string target, string name)
+        {
+            try
+            { 
+                if (target == "connect")
+                {
+                    await recognizer.ContinuousRecognitionSession.StopAsync();
+
+                    _name = name;
+
+                    //Signalr Code
+                    await ConnectToHub(HUB_URL, HUB_NAME);
+                    await _proxy.Invoke("Join", _name.ToLower());
+
+                    SendToView("Connecting as " + _name);
+
+                    await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                    {
+                        ReadText("OK " + _name + " You are now available.");
+                    });
+
+                    SendToView("You are now available for messaging");
+                    SendToView("You can say 'send message [pause 1 second] [name of person to message] + message");
+
+                    await recognizer.ContinuousRecognitionSession.StartAsync();
+                    return;
+                }
+
+                //if (target == "disconnect")
+                //{
+
+                //    await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                //    {
+                //        ReadText("OK You are no longer available on the hub.");
+                //    });
+                //    await recognizer.ContinuousRecognitionSession.StopAsync();
+
+                //    _hubConnection.Stop();
+                //    _proxy = null;
+                //    _hubConnection.Dispose();
+
+                //    await recognizer.ContinuousRecognitionSession.StartAsync();
+
+                //    return;
+                //}
+
+                if (target == "Send Message")
+                {
+                    await recognizer.ContinuousRecognitionSession.StopAsync();
+                    await InitializeTalk();
+                    return;
+                }
+
+
+                if (target == "get time")
+                {
+
+                    await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                    {
+                        ReadText(_name + " the time is <say-as interpret-as='time' format='hms12'> " + DateTime.Now.ToString("hh:mm tt") + " </say-as>");
+                    });
+                    return;
+                }
+
+
+                if (target == "thanks")
+                {
+
+                    await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                    {
+                        ReadText("my pleasure " + _name);
+                    });
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                //You can log any errors here but its really on here for 503 errors to pass through
+                SendToView("ProcessContinousVoiceResult " + ex.Message);
+            }
+        }
+
         // Recognizer generated results
-        private async void RecognizerResultGenerated(SpeechContinuousRecognitionSession session, SpeechContinuousRecognitionResultGeneratedEventArgs args)
+        private void RecognizerResultGenerated(SpeechContinuousRecognitionSession session, SpeechContinuousRecognitionResultGeneratedEventArgs args)
         {
             try
             {
@@ -218,87 +300,13 @@ namespace BiDirectionalVoiceApp
                             args.Result.SemanticInterpretation.Properties["cmd"][0].ToString() :
                             "";
                 String name = args.Result.SemanticInterpretation.Properties.ContainsKey("name") ?
-                    args.Result.SemanticInterpretation.Properties["name"][0].ToString() :
-                    "";
+                            args.Result.SemanticInterpretation.Properties["name"][0].ToString() :
+                            "";
 
-                var c = args.Result.Confidence;
-
-                if (c == SpeechRecognitionConfidence.High)
+                if (args.Result.Confidence == SpeechRecognitionConfidence.High)
                 {
                     SendToView("Command: " + target);
-
-                    if (target == "connect")
-                    {
-                        await recognizer.ContinuousRecognitionSession.StopAsync();
-
-                        _name = name;
-
-                        //Signalr Code
-                        await ConnectToHub(HUB_URL, HUB_NAME);
-                        await _proxy.Invoke("Join", _name.ToLower());
-
-                        SendToView("Connecting as " + _name);
-
-                        await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
-                        {
-                            ReadText("OK " + _name + " You are now available.");
-                        });
-
-                        SendToView("You are now available for messaging");
-                        SendToView("You can say 'send message [pause 1 second] [name of person to message] + message");
-
-                        await recognizer.ContinuousRecognitionSession.StartAsync();
-                        return;
-                    }
-
-                    //if (target == "disconnect")
-                    //{
-
-                    //    await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
-                    //    {
-                    //        ReadText("OK You are no longer available on the hub.");
-                    //    });
-                    //    await recognizer.ContinuousRecognitionSession.StopAsync();
-
-                    //    _hubConnection.Stop();
-                    //    _proxy = null;
-                    //    _hubConnection.Dispose();
-
-                    //    await recognizer.ContinuousRecognitionSession.StartAsync();
-
-                    //    return;
-                    //}
-
-                    if (target == "Send Message")
-                    {
-                        await recognizer.ContinuousRecognitionSession.StopAsync();
-                        await InitializeTalk();
-                        return;
-                    }
-
-
-                    if (target == "get time")
-                    {
-
-                        await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
-                        {
-                            ReadText(_name + " the time is <say-as interpret-as='time' format='hms12'> " + DateTime.Now.ToString("hh:mm tt") + " </say-as>");
-                        });
-                        return;
-                    }
-
-
-                    if (target == "thanks")
-                    {
-
-                        await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
-                        {
-                            ReadText("my pleasure " + _name);
-                        });
-                        return;
-                    }
-
-
+                    ProcessContinousVoiceResult(target,name);
                 }
             }
             catch (Exception ex)
