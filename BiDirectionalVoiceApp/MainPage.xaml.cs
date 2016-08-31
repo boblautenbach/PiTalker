@@ -151,7 +151,7 @@ namespace BiDirectionalVoiceApp
         }
 
         // Initialize Speech Recognizer and start async recognition
-        private async void initializeSpeechRecognizer()
+        private async Task initializeSpeechRecognizer()
         {
 
             try
@@ -160,7 +160,7 @@ namespace BiDirectionalVoiceApp
                 recognizer = new SpeechRecognizer();
 
                 // Set event handlers
-                recognizer.StateChanged += RecognizerStateChanged;
+            //    recognizer.StateChanged += RecognizerStateChanged;
                 recognizer.ContinuousRecognitionSession.ResultGenerated += RecognizerResultGenerated;
                 // Load Grammer file constraint
                 string fileName = String.Format(SRGS_FILE);
@@ -205,7 +205,7 @@ namespace BiDirectionalVoiceApp
 
         private void RecognizerStateChanged(SpeechRecognizer sender, SpeechRecognizerStateChangedEventArgs args)
         {
-           // throw new NotImplementedException();
+            //SendToView("Continuous Listener state ...: " + sender.State.ToString());
         }
 
         // Recognizer generated results
@@ -307,7 +307,7 @@ namespace BiDirectionalVoiceApp
             }
         }
 
-        private async void _hubConnection_StateChanged(StateChange obj)
+        private void _hubConnection_StateChanged(StateChange obj)
         {
             try
             {
@@ -359,12 +359,19 @@ namespace BiDirectionalVoiceApp
                 _proxy.On<HubMessage>("OnMessageSent", async (x) =>
                 {
 
-                    SendToView("Message Received from  " + x.Sender + " : " + x.Group + " "  + x.Msg);
+                    try { 
+                        SendToView("Message Received from  " + x.Sender + " : " + x.Group + " "  + x.Msg);
 
-                    await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                        await this.Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                        {
+                            ReadText(x.Sender + "says. " + x.Group + " " +x.Msg);
+                        });
+                    }
+                    catch (Exception ex)
                     {
-                        ReadText(x.Sender + "says. " + x.Group + " " +x.Msg);
-                    });
+                        //You can log any errors here but its really on here for 503 errors to pass through
+                        SendToView("OnMessageSent Error " + ex.Message);
+                    }
                 });
 
                 await _hubConnection.Start();
