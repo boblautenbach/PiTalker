@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" IgnorableNamespaces="uap mp">
-  <Identity Name="b9c53770-2b41-42eb-9243-e4f5e8446a21" Publisher="CN=Bob Lautenbach" Version="1.0.25.0" />
+  <Identity Name="b9c53770-2b41-42eb-9243-e4f5e8446a21" Publisher="CN=Bob Lautenbach" Version="1.0.26.0" />
   <mp:PhoneIdentity PhoneProductId="b9c53770-2b41-42eb-9243-e4f5e8446a21" PhonePublisherId="00000000-0000-0000-0000-000000000000" />
   <Properties>
     <DisplayName>BiDirectionalVoiceApp</DisplayName>

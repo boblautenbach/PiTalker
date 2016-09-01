@@ -32,10 +32,6 @@
       </item>
         <item>
         thank you alfred<tag>out.cmd="thanks";</tag>
-      </item>
-            <item>
-        thanks<tag>out.cmd="thanks";</tag>
-      </item>
     </one-of>
   </rule>
 
