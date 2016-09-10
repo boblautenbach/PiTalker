@@ -30,8 +30,9 @@
       <item>
         thanks alfred<tag>out.cmd="thanks";</tag>
       </item>
-        <item>
+      <item>
         thank you alfred<tag>out.cmd="thanks";</tag>
+      </item>
     </one-of>
   </rule>
 
